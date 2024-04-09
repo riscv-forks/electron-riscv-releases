@@ -17,7 +17,6 @@ ResolvConf=off
 VirtualEthernet=no
 
 [Files]
-Bind=/home/kxxt/Workspaces/electron
 Bind=/home/kxxt/Workspaces/chromium
 Bind=/home/kxxt/.cache/ccache
 Bind=/home/kxxt/.git_cache
@@ -36,4 +35,8 @@ This override is needed only because I put the rootfs outside of `/var/lib/machi
 ExecStart=
 ExecStart=systemd-nspawn --quiet --keep-unit --boot --link-journal=try-guest --network-veth -D /data/nspawn-containers/bookworm -U --settings=override --machine=%i
 ```
+
+## Nspawn Runner 
+
+FIXME: Create a systemd service for the github runner.
 

@@ -1,0 +1,217 @@
+name: Release
+run-name: ${{ github.actor }} is releasing a new electron riscv build
+on:
+  push:
+    branches:
+      - main
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  TOOLCHAIN_OUTDIR: /home/kxxt/electron-ci/artifacts/toolchains
+  ELECTRON_FINAL_DIR: /home/kxxt/electron-ci/artifacts/releases
+  SRC_DIR: /home/kxxt/electron-ci/sources/electron/src
+  OUT_DIR: /home/kxxt/electron-ci/sources/electron/src/out/Release-riscv64
+  ELECTRON_TAG: v28.2.9
+  ELECTRON_RISCV_REV: 1
+  GN_EXTRA_ARGS: "target_cpu = \"riscv64\" is_clang = true"
+
+jobs:
+  Figure-Out-What-To-Build:
+    runs-on: ubuntu-latest
+    outputs:
+      should-build: ${{ steps.should-build.outputs.should-build }}
+    steps:
+      - id: should-build
+        name: Check if we should build
+        run: echo "should-build=true" >> "$GITHUB_OUTPUT"
+  Cross-Build-Electron-From-x64:
+    runs-on: large-runner
+    needs: Figure-Out-What-To-Build
+    if: ${{ needs.Figure-Out-What-To-Build.outputs.should-build == 'true' }}
+    steps:
+      - name: Sync sources
+        run: |
+          set -e
+          cd "$SRC_DIR/.."
+          git -C src clean -fd
+          git -C src/electron fetch rv
+          git -C src/electron switch --detach rv/${ELECTRON_TAG}-riscv
+          gclient sync -D --force
+      - name: Prepare Sysroot
+        run: |
+          set -e
+          SYSROOT_REVISION=sysroot-20240131T153825Z-1
+          SYSROOT_TAR=debian_sid_riscv64_sysroot.tar.xz
+          SYSROOT_FILE="$TOOLCHAIN_OUTDIR/$SYSROOT_REVISION/$SYSROOT_TAR"
+          if ! [ -f "$SYSROOT_FILE" ]; then
+            # Download sysroot from GitHub releases
+            gh -R riscv-forks/electron release download $SYSROOT_REVISION -p $SYSROOT_TAR -O "$SYSROOT_FILE"
+          fi
+          # Unpack the sysroot
+          cd "$SRC_DIR"
+          rm -rf build/linux/debian_sid_riscv64-sysroot
+          mkdir build/linux/debian_sid_riscv64-sysroot
+          tar xf "$SYSROOT_FILE" --directory=build/linux/debian_sid_riscv64-sysroot
+          mkdir -p third_party/llvm-build-tools/
+          ln -s ../../build/linux/debian_sid_riscv64-sysroot third_party/llvm-build-tools/debian_sid_riscv64_sysroot
+      - name: Download or Build Chromium flavor Clang
+        run: |
+          set -e
+          cd "$SRC_DIR"
+          CLANG_REVISION="$(tools/clang/scripts/update.py --print-revision)"
+          CLANG_TAR=clang-"$CLANG_REVISION".tar.xz
+          CLANG_FILE="$TOOLCHAIN_OUTDIR/$CLANG_TAR"
+          if ! [ -f "$CLANG_FILE" ]; then
+            # Download clang from GitHub releases
+            GH_ERR="$(gh -R riscv-forks/electron release download clang-"$CLANG_REVISION" -p $CLANG_TAR -O "$CLANG_FILE" 2>&1)"
+            if [ $? -ne 0 ]; then
+              echo "$GH_ERR"
+              if [[ $GH_ERR == *"not found"* ]]; then
+                echo "Building Clang from source!"
+                tools/clang/scripts/package.py
+                mv *$CLANG_REVISION*.tar.xz "$TOOLCHAIN_OUTDIR/"
+                GH_TOKEN={{ secrets.CI_PAT }} gh -R riscv-forks/electron release create -t "Clang toolchain $CLANG_REVISION" \
+                  --target README clang-$CLANG_REVISION "$TOOLCHAIN_OUTDIR/"*$CLANG_REVISION*.tar.xz
+              else
+                rm -f "$CLANG_FILE"
+              fi
+            fi
+          fi
+          # Unpack Clang
+          cd third_party/llvm-build/Release+Asserts
+          tar xf "$CLANG_FILE"
+      - name: Download or Build Rust
+        run: |
+          set -e
+          cd "$SRC_DIR"
+          RUST_REVISION="$(tools/rust/update_rust.py --print-package-version)"
+          RUST_TAR=rust-toolchain-"$RUST_REVISION".tar.xz
+          RUST_FILE="$TOOLCHAIN_OUTDIR/$RUST_TAR"
+          if ! [ -f "$RUST_FILE" ]; then
+            # Download rust from GitHub releases
+            GH_ERR="$(gh -R riscv-forks/electron release download rustc-"$RUST_REVISION" -p $RUST_TAR -O "$RUST_FILE" 2>&1)"
+            if [ $? -ne 0 ]; then
+              echo "$GH_ERR"
+              if [[ $GH_ERR == *"not found"* ]]; then
+                echo "Building Rust from source!"
+                tools/rust/package_rust.py
+                mv third_party/*$RUST_REVISION* "$TOOLCHAIN_OUTDIR/"
+                GH_TOKEN={{ secrets.CI_PAT }} gh -R riscv-forks/electron release create -t "Rust Toolchain $RUST_REVISION" \
+                  --target README rustc-$RUST_REVISION "$TOOLCHAIN_OUTDIR/"*$RUST_REVISION*
+              else
+                rm -f "$RUST_FILE"
+              fi
+            fi
+          fi
+          # Unpack Rust
+          cd third_party/
+          tar xf "$RUST_FILE"
+          cp rust-toolchain/{,INSTALLED_}VERSION
+      - name: Run GN
+        run: |
+          set -e
+          cd "$SRC_DIR"
+          ./buildtools/linux64/gn gen "$OUT_DIR" --args="import(\"//electron/build/args/release.gn\") $GN_EXTRA_ARGS"
+      - name: Run Ninja
+        run: |
+          set -e
+          cd "$SRC_DIR"
+          rm -f "$OUT_DIR"/electron
+          ninja -C "$OUT_DIR" electron
+      - name: Package Debug Info and Strip Electron
+        run: |
+          set -e
+          cd "$SRC_DIR"
+          electron/script/copy-debug-symbols.py --target-cpu=riscv64 --out-dir="$OUT_DIR"/debug --compress
+          electron/script/add-debug-link.py --target-cpu=riscv64 --debug-dir="$OUT_DIR"/debug
+          electron/script/strip-binaries.py -d "$OUT_DIR" --target-cpu riscv64
+          export BUILD_PATH="$OUT_DIR"
+          autoninja -C "$OUT_DIR" electron:licenses
+          autoninja -C "$OUT_DIR" electron:electron_version_file
+          DELETE_DSYMS_AFTER_ZIP=1 electron/script/zip-symbols.py -b "$BUILD_PATH"
+          RELEASE_DIR="$ELECTRON_FINAL_DIR/$ELECTRON_TAG-$ELECTRON_RISCV_REV"
+          rm -rf RELEASE_DIR
+          mkdir -p "$RELEASE_DIR"
+          cp "$OUT_DIR"/symbols.zip "$RELEASE_DIR/electron-$ELECTRON_TAG-linux-riscv64-symbols.zip"
+          cp "$OUT_DIR"/debug.zip "$RELEASE_DIR/electron-$ELECTRON_TAG-linux-riscv64-debug.zip"
+      - name: Package Electron
+        run: |
+          set -e
+          cd "$SRC_DIR"
+          ninja -C "$OUT_DIR" electron:electron_dist_zip
+          RELEASE_DIR="$ELECTRON_FINAL_DIR/$ELECTRON_TAG-$ELECTRON_RISCV_REV"
+          mv "$OUT_DIR"/dist.zip "$RELEASE_DIR/electron-$ELECTRON_TAG-linux-riscv64.zip"
+      - name: Build mksnapshot
+        run: |
+          set -e
+          cd "$SRC_DIR"
+          autoninja -C "$OUT_DIR" electron:electron_mksnapshot
+          ./buildtools/linux64/gn desc "$OUT_DIR" v8:run_mksnapshot_default args > "$OUT_DIR"/mksnapshot_args
+          # Remove unused args from mksnapshot_args
+          sed -i '/.*builtins-pgo/d' "$OUT_DIR"/mksnapshot_args
+          sed -i '/--turbo-profiling-input/d' "$OUT_DIR"/mksnapshot_args
+          sed -i '/The gn arg use_goma=true .*/d' "$OUT_DIR"/mksnapshot_args
+          electron/script/strip-binaries.py --file "$OUT_DIR"/clang_x64_v8_riscv64/mksnapshot
+          electron/script/strip-binaries.py --file "$OUT_DIR"/clang_x64_v8_riscv64/v8_context_snapshot_generator
+          autoninja -C "$OUT_DIR" electron:electron_mksnapshot_zip
+          cd "$OUT_DIR"
+          RELEASE_DIR="$ELECTRON_FINAL_DIR/$ELECTRON_TAG-$ELECTRON_RISCV_REV"
+          zip mksnapshot.zip  mksnapshot_args gen/v8/embedded.S
+          mv mksnapshot.zip "$RELEASE_DIR/mksnapshot-$ELECTRON_TAG-linux-riscv64.zip"
+      - name: Build chromedriver
+        run: |
+          set -e
+          cd "$SRC_DIR"
+          ./buildtools/linux64/gn gen out/chromedriver-riscv --args="import(\"//electron/build/args/release.gn\") is_component_ffmpeg=false proprietary_codecs=false $GN_EXTRA_ARGS"
+          autoninja -C out/chromedriver-riscv electron:electron_chromedriver
+          electron/script/strip-binaries.py --target-cpu="riscv64" --file out/chromedriver-riscv/chromedriver
+          autoninja -C out/chromedriver-riscv electron:electron_chromedriver_zip
+          RELEASE_DIR="$ELECTRON_FINAL_DIR/$ELECTRON_TAG-$ELECTRON_RISCV_REV"
+          mv out/chromedriver-riscv/chromedriver.zip "$RELEASE_DIR/chromedriver-$ELECTRON_TAG-linux-riscv64.zip"
+      - name: Build Node.JS headers
+        run: |
+          set -e
+          cd "$SRC_DIR"
+          ninja -C "$OUT_DIR" electron:node_headers
+          RELEASE_DIR="$ELECTRON_FINAL_DIR/$ELECTRON_TAG-$ELECTRON_RISCV_REV"
+          mv "$OUT_DIR"/gen/node_headers.tar.gz "$RELEASE_DIR/node-$ELECTRON_TAG-headers.tar.gz"
+      - name: Build ffmpeg
+        run: |
+          set -e
+          cd "$SRC_DIR"
+          ./buildtools/linux64/gn gen out/ffmpeg-riscv --args="import(\"//electron/build/args/ffmpeg.gn\") $GN_EXTRA_ARGS"
+          ninja -C out/ffmpeg-riscv electron:electron_ffmpeg_zip
+          RELEASE_DIR="$ELECTRON_FINAL_DIR/$ELECTRON_TAG-$ELECTRON_RISCV_REV"
+          mv out/ffmpeg-riscv/ffmpeg.zip "$RELEASE_DIR/ffmpeg-$ELECTRON_TAG-linux-riscv64.zip"
+      - name: Build hunspell
+        run: |
+          set -e
+          cd "$SRC_DIR"
+          ninja -C "$OUT_DIR" electron:hunspell_dictionaries_zip
+          RELEASE_DIR="$ELECTRON_FINAL_DIR/$ELECTRON_TAG-$ELECTRON_RISCV_REV"
+          mv "$OUT_DIR"/hunspell_dictionaries.zip "$RELEASE_DIR/hunspell-dictionaries.zip"
+      - name: Build libcxx
+        run: |
+          set -e
+          cd "$SRC_DIR"
+          ninja -C "$OUT_DIR" electron:libcxx_headers_zip
+          ninja -C "$OUT_DIR" electron:libcxxabi_headers_zip
+          ninja -C "$OUT_DIR" electron:libcxx_objects_zip
+          RELEASE_DIR="$ELECTRON_FINAL_DIR/$ELECTRON_TAG-$ELECTRON_RISCV_REV"
+          mv "$OUT_DIR"/libcxx_objects.zip "$RELEASE_DIR/libcxx-objects-$ELECTRON_TAG-linux-riscv64.zip"
+          mv "$OUT_DIR"/libcxxabi_headers.zip "$RELEASE_DIR/libcxxabi-headers.zip"
+          mv "$OUT_DIR"/libcxx_headers.zip "$RELEASE_DIR/libcxx-headers.zip"
+      - name: Upload Electron
+        run: |
+          set -e
+          RELEASE_DIR="$ELECTRON_FINAL_DIR/$ELECTRON_TAG-$ELECTRON_RISCV_REV"
+          cd "$RELEASE_DIR"
+          rm -f SHASUMS256.txt
+          for filename in *; do
+            checksum=$(sha256sum "$filename" | cut -d ' ' -f 1)
+            echo "$checksum *$filename" >> SHASUMS256.txt
+          done
+          gh -R riscv-forks/electron-riscv-releases release create "$ELECTRON_TAG.riscv$ELECTRON_RISCV_REV" \
+            -t "Electron $ELECTRON_TAG for 64 Bit RISC-V" \
+            --notes "Electron for riscv64 built from $ELECTRON_TAG-riscv branch (commit $(git -C "$SRC_DIR/electron" rev-parse HEAD))" \
+            *
