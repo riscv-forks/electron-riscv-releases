@@ -10,3 +10,9 @@ Close to upstream releases are published in GitHub releases.
 The source repo of electron RISC-V fork is https://github.com/riscv-forks/electron
 
 The build instructions are also in the fork repo.
+
+# TODO
+
+- For now the CI uses a persistent systemd-nspawn container. 
+Ideally it should be ephemeral and well documented in a Dockerfile.
+- For now only electron releases are published. Ideally we should also publish chromedriver, mksnapshot, etc.
