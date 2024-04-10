@@ -11,8 +11,8 @@ env:
   ELECTRON_FINAL_DIR: /home/kxxt/electron-ci/artifacts/releases
   SRC_DIR: /home/kxxt/electron-ci/sources/electron/src
   OUT_DIR: /home/kxxt/electron-ci/sources/electron/src/out/Release-riscv64
-  ELECTRON_TAG: v29.1.4
-  ELECTRON_RISCV_REV: 2
+  ELECTRON_TAG: v29.3.0
+  ELECTRON_RISCV_REV: 1
   GN_EXTRA_ARGS: "target_cpu = \"riscv64\" is_clang = true"
 
 jobs:
@@ -225,5 +225,6 @@ jobs:
           done
           gh -R riscv-forks/electron-riscv-releases release create "$ELECTRON_TAG.riscv$ELECTRON_RISCV_REV" \
             -t "Electron $ELECTRON_TAG for 64 Bit RISC-V" \
-            --notes "Electron for riscv64 built from $ELECTRON_TAG-riscv branch (commit $(git -C "$SRC_DIR/electron" rev-parse HEAD))" \
+            --notes "Electron for riscv64 built from [$ELECTRON_TAG-riscv branch](https://github.com/riscv-forks/electron/tree/$ELECTRON_TAG-riscv)
+          (commit $(git -C "$SRC_DIR/electron" rev-parse HEAD))" \
             $(find . -type f -size -2147483648c)
