@@ -122,9 +122,9 @@ jobs:
         run: |
           set -e
           cd "$SRC_DIR"
-          electron/script/copy-debug-symbols.py --target-cpu=riscv64 --out-dir="$OUT_DIR"/debug --compress
-          electron/script/add-debug-link.py --target-cpu=riscv64 --debug-dir="$OUT_DIR"/debug
+          electron/script/copy-debug-symbols.py --target-cpu=riscv64 -d "$OUT_DIR" --out-dir="$OUT_DIR"/debug --compress
           electron/script/strip-binaries.py -d "$OUT_DIR" --target-cpu riscv64
+          electron/script/add-debug-link.py --target-cpu=riscv64 -d "$OUT_DIR" --debug-dir="$OUT_DIR"/debug
           export BUILD_PATH="$OUT_DIR"
           autoninja -C "$OUT_DIR" electron:licenses
           autoninja -C "$OUT_DIR" electron:electron_version_file
