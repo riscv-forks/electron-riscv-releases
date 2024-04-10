@@ -15,4 +15,4 @@ The build instructions are also in the fork repo.
 
 - For now the CI uses a persistent systemd-nspawn container. 
 Ideally it should be ephemeral and well documented in a Dockerfile.
-- For now only electron releases are published. Ideally we should also publish chromedriver, mksnapshot, etc.
+- The CI yaml and procedure need to be improved.
