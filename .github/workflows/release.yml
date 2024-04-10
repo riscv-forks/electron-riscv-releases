@@ -12,7 +12,7 @@ env:
   SRC_DIR: /home/kxxt/electron-ci/sources/electron/src
   OUT_DIR: /home/kxxt/electron-ci/sources/electron/src/out/Release-riscv64
   ELECTRON_TAG: v29.1.4
-  ELECTRON_RISCV_REV: 1
+  ELECTRON_RISCV_REV: 2
   GN_EXTRA_ARGS: "target_cpu = \"riscv64\" is_clang = true"
 
 jobs:
@@ -122,18 +122,30 @@ jobs:
         run: |
           set -e
           cd "$SRC_DIR"
+          autoninja -C "$OUT_DIR" electron:electron_symbols
           electron/script/copy-debug-symbols.py --target-cpu=riscv64 -d "$OUT_DIR" --out-dir="$OUT_DIR"/debug --compress
           electron/script/strip-binaries.py -d "$OUT_DIR" --target-cpu riscv64
           electron/script/add-debug-link.py --target-cpu=riscv64 -d "$OUT_DIR" --debug-dir="$OUT_DIR"/debug
-          export BUILD_PATH="$OUT_DIR"
           autoninja -C "$OUT_DIR" electron:licenses
           autoninja -C "$OUT_DIR" electron:electron_version_file
-          DELETE_DSYMS_AFTER_ZIP=1 electron/script/zip-symbols.py -b "$BUILD_PATH"
+          DELETE_DSYMS_AFTER_ZIP=1 electron/script/zip-symbols.py -b "$(realpath "$OUT_DIR")"
+          # RISC-V debug zip exceeds 2GB, use zstd as a workaround
+          # I don't want to modify upstream scripts, so I'll unzip them and tar them
+          rm -rf "$OUT_DIR"/debug-zip
+          mkdir -p "$OUT_DIR"/debug-zip
+          unzip -q "$OUT_DIR"/debug.zip -d "$OUT_DIR"/debug-zip
+          ZSTD_CLEVEL=12 tar -C "$OUT_DIR"/debug-zip --zstd -cvf "$OUT_DIR"/debug.tar.zst .
+          rm -rf "$OUT_DIR"/debug-zip
+          rm -rf "$OUT_DIR"/symbols-zip
+          mkdir -p "$OUT_DIR"/symbols-zip
+          unzip -q "$OUT_DIR"/symbols.zip -d "$OUT_DIR"/symbols-zip
+          ZSTD_CLEVEL=12 tar -C "$OUT_DIR"/symbols-zip --zstd -cvf "$OUT_DIR"/symbols.tar.zst .
+          rm -rf "$OUT_DIR"/symbols-zip
           RELEASE_DIR="$ELECTRON_FINAL_DIR/$ELECTRON_TAG-$ELECTRON_RISCV_REV"
           rm -rf RELEASE_DIR
           mkdir -p "$RELEASE_DIR"
-          cp "$OUT_DIR"/symbols.zip "$RELEASE_DIR/electron-$ELECTRON_TAG-linux-riscv64-symbols.zip"
-          cp "$OUT_DIR"/debug.zip "$RELEASE_DIR/electron-$ELECTRON_TAG-linux-riscv64-debug.zip"
+          cp "$OUT_DIR"/symbols.tar.zst "$RELEASE_DIR/electron-$ELECTRON_TAG-linux-riscv64-symbols.tar.zst"
+          cp "$OUT_DIR"/debug.tar.zst "$RELEASE_DIR/electron-$ELECTRON_TAG-linux-riscv64-debug.tar.zst"
       - name: Package Electron
         run: |
           set -e
@@ -214,4 +226,4 @@ jobs:
           gh -R riscv-forks/electron-riscv-releases release create "$ELECTRON_TAG.riscv$ELECTRON_RISCV_REV" \
             -t "Electron $ELECTRON_TAG for 64 Bit RISC-V" \
             --notes "Electron for riscv64 built from $ELECTRON_TAG-riscv branch (commit $(git -C "$SRC_DIR/electron" rev-parse HEAD))" \
-            *
+            $(find . -type f -size -2147483648c)
