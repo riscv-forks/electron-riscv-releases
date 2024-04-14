@@ -12,8 +12,10 @@ env:
   SRC_DIR: /home/kxxt/electron-ci/sources/electron/src
   OUT_DIR: /home/kxxt/electron-ci/sources/electron/src/out/Release-riscv64
   ELECTRON_TAG: v28.2.8
-  ELECTRON_RISCV_REV: 1
-  GN_EXTRA_ARGS: "target_cpu = \"riscv64\" is_clang = true"
+  ELECTRON_RISCV_REV: 2
+  GN_EXTRA_ARGS: "target_cpu = \"riscv64\" is_clang = true cc_wrapper=\"ccache\""
+  CCACHE_CPP2: 'yes'
+  CCACHE_SLOPPINESS: time_macros
 
 jobs:
   Figure-Out-What-To-Build:
@@ -228,3 +230,17 @@ jobs:
             --notes "Electron for riscv64 built from [$ELECTRON_TAG-riscv branch](https://github.com/riscv-forks/electron/tree/$ELECTRON_TAG-riscv)
           (commit $(git -C "$SRC_DIR/electron" rev-parse HEAD))" \
             $(find . -type f -size -2147483648c)
+          # Create/upload releases for compatible electron tag
+          if gh release view "$ELECTRON_TAG"; then
+            # A previous release exists
+            RELEASE_ACTION=edit            
+          else
+            # No previous release exists
+            RELEASE_ACTION=create
+          fi
+          gh -R riscv-forks/electron-riscv-releases release $RELEASE_ACTION "$ELECTRON_TAG" \
+              -t "Electron $ELECTRON_TAG for 64 Bit RISC-V" \
+              --notes "Latest Electron $ELECTRON_TAG for riscv64
+          This release will be re-uploaded if a new riscv64 revision is made.
+          Original release: https://github.com/riscv-forks/electron-riscv-releases/releases/tag/$ELECTRON_TAG.riscv$ELECTRON_RISCV_REV"
+          gh -R riscv-forks/electron-riscv-releases release upload --clobber "$ELECTRON_TAG" $(find . -type f -size -2147483648c)
