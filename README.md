@@ -27,6 +27,9 @@ The version scheme is `<upstream version>.riscv<riscv revision>`.
 But do note that this version scheme is only used by the tags in this repo.
 For compatibility reasons, the released artifacts are using the upstream version scheme.
 
+And to make the releases easier to use by various tools, releases are also uploaded to upstream tags.
+Note that if a new riscv revision is made for an upstream version, that release will be re-uploaded.
+
 # TODO
 
 - For now the CI uses a persistent systemd-nspawn container. 
