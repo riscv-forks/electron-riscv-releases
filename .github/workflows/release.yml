@@ -57,6 +57,8 @@ jobs:
           mkdir -p third_party/llvm-build-tools/
           ln -s ../../build/linux/debian_sid_riscv64-sysroot third_party/llvm-build-tools/debian_sid_riscv64_sysroot
       - name: Download or Build Chromium flavor Clang
+        env:
+          CI_PAT: ${{ secrets.CI_PAT }}
         run: |
           set -ex
           cd "$SRC_DIR"
@@ -71,7 +73,7 @@ jobs:
                 echo "Building Clang from source!"
                 tools/clang/scripts/package.py
                 mv *$CLANG_REVISION*.tar.xz "$TOOLCHAIN_OUTDIR/"
-                GH_TOKEN={{ secrets.CI_PAT }} gh -R riscv-forks/electron release create -t "Clang toolchain $CLANG_REVISION" \
+                GH_TOKEN="$CI_PAT" gh -R riscv-forks/electron release create -t "Clang toolchain $CLANG_REVISION" \
                   --target README clang-$CLANG_REVISION "$TOOLCHAIN_OUTDIR/"*$CLANG_REVISION*.tar.xz
               else
                 rm -f "$CLANG_FILE"
@@ -82,6 +84,8 @@ jobs:
           cd third_party/llvm-build/Release+Asserts
           tar xf "$CLANG_FILE"
       - name: Download or Build Rust
+        env:
+          CI_PAT: ${{ secrets.CI_PAT }}
         run: |
           set -ex
           cd "$SRC_DIR"
@@ -96,7 +100,7 @@ jobs:
                 echo "Building Rust from source!"
                 tools/rust/package_rust.py
                 mv third_party/*$RUST_REVISION* "$TOOLCHAIN_OUTDIR/"
-                GH_TOKEN={{ secrets.CI_PAT }} gh -R riscv-forks/electron release create -t "Rust Toolchain $RUST_REVISION" \
+                GH_TOKEN="$CI_PAT" gh -R riscv-forks/electron release create -t "Rust Toolchain $RUST_REVISION" \
                   --target README rustc-$RUST_REVISION "$TOOLCHAIN_OUTDIR/"*$RUST_REVISION*
               else
                 rm -f "$RUST_FILE"
