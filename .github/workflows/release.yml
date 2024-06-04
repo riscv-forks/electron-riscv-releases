@@ -25,7 +25,7 @@ jobs:
     steps:
       - id: should-build
         name: Check if we should build
-        run: echo "should-build=true" >> "$GITHUB_OUTPUT"
+        run: echo "should-build=false" >> "$GITHUB_OUTPUT"
   Cross-Build-Electron-From-x64:
     runs-on: large-runner
     needs: Figure-Out-What-To-Build
@@ -188,7 +188,11 @@ jobs:
         run: |
           set -ex
           cd "$SRC_DIR"
-          ninja -C "$OUT_DIR" electron:node_headers
+          if (($(echo ${ELECTRON_TAG/v/} | cut -d. -f1) > 27 )); then
+            ninja -C "$OUT_DIR" electron:node_headers
+          else
+            ninja -C "$OUT_DIR" third_party/electron_node:headers
+          fi
           RELEASE_DIR="$ELECTRON_FINAL_DIR/$ELECTRON_TAG-$ELECTRON_RISCV_REV"
           mv "$OUT_DIR"/gen/node_headers.tar.gz "$RELEASE_DIR/node-$ELECTRON_TAG-headers.tar.gz"
       - name: Build ffmpeg
