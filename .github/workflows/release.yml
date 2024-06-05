@@ -12,7 +12,7 @@ env:
   SRC_DIR: /home/kxxt/electron-ci/sources/electron/src
   OUT_DIR: /home/kxxt/electron-ci/sources/electron/src/out/Release-riscv64
   ELECTRON_TAG: v27.3.11
-  ELECTRON_RISCV_REV: 1
+  ELECTRON_RISCV_REV: 2
   GN_EXTRA_ARGS: "target_cpu = \"riscv64\" is_clang = true cc_wrapper=\"ccache\""
   CCACHE_CPP2: 'yes'
   CCACHE_SLOPPINESS: time_macros
@@ -25,9 +25,9 @@ jobs:
     steps:
       - id: should-build
         name: Check if we should build
-        run: echo "should-build=false" >> "$GITHUB_OUTPUT"
+        run: echo "should-build=true" >> "$GITHUB_OUTPUT"
   Cross-Build-Electron-From-x64:
-    runs-on: large-runner
+    runs-on: minun
     needs: Figure-Out-What-To-Build
     if: ${{ needs.Figure-Out-What-To-Build.outputs.should-build == 'true' }}
     steps:
