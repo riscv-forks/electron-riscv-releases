@@ -42,7 +42,7 @@ jobs:
       - name: Prepare Sysroot
         run: |
           set -ex
-          SYSROOT_REVISION=sysroot-20240131T153825Z-2
+          SYSROOT_REVISION=sysroot-20240131T153825Z-3
           SYSROOT_TAR=debian_sid_riscv64_sysroot.tar.xz
           SYSROOT_FILE="$TOOLCHAIN_OUTDIR/$SYSROOT_REVISION/$SYSROOT_TAR"
           if ! [ -f "$SYSROOT_FILE" ]; then
