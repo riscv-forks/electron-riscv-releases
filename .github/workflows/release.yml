@@ -38,7 +38,7 @@ jobs:
           git -C src clean -fd
           git -C src/electron fetch rv
           git -C src/electron switch --detach rv/${ELECTRON_TAG}-riscv
-          gclient sync -D --force
+          gclient sync --force
       - name: Prepare Sysroot
         run: |
           set -ex
