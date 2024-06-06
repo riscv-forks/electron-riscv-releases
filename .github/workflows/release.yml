@@ -36,6 +36,7 @@ jobs:
           set -ex
           cd "$SRC_DIR/.."
           git -C src clean -fd
+          git -C src am --abort || true
           git -C src/electron fetch rv
           git -C src/electron switch --detach rv/${ELECTRON_TAG}-riscv
           gclient sync --force
