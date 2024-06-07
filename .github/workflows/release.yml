@@ -91,22 +91,46 @@ jobs:
           set -ex
           cd "$SRC_DIR"
           RUST_REVISION="$(tools/rust/update_rust.py --print-package-version)"
-          RUST_TAR=rust-toolchain-"$RUST_REVISION".tar.xz
-          RUST_FILE="$TOOLCHAIN_OUTDIR/$RUST_TAR"
-          if ! [ -f "$RUST_FILE" ]; then
-            # Download rust from GitHub releases
-            if ! GH_ERR="$(gh -R riscv-forks/electron release download rustc-"$RUST_REVISION" -p $RUST_TAR -O "$RUST_FILE" 2>&1)"; then
-              echo "$GH_ERR"
-              if [[ $GH_ERR == *"not found"* ]]; then
-                echo "Building Rust from source!"
-                tools/rust/package_rust.py
-                mv third_party/*$RUST_REVISION* "$TOOLCHAIN_OUTDIR/"
-                GH_TOKEN="$CI_PAT" gh -R riscv-forks/electron release create -t "Rust Toolchain $RUST_REVISION" \
-                  --target README rustc-$RUST_REVISION "$TOOLCHAIN_OUTDIR/"*$RUST_REVISION*
+          RUST_TAR1=rust-toolchain-"$RUST_REVISION".tar.xz
+          RUST_TAR2=rust-toolchain-"$RUST_REVISION".tgz
+          RUST_FILE1="$TOOLCHAIN_OUTDIR/$RUST_TAR1"
+          RUST_FILE2="$TOOLCHAIN_OUTDIR/$RUST_TAR2"
+          if ! [ -f "$RUST_FILE1" ]; then
+            if ! [ -f "$RUST_FILE2" ]; then
+              # Download rust from GitHub releases
+              if ! GH_ERR="$(gh -R riscv-forks/electron release download rustc-"$RUST_REVISION" -p $RUST_TAR2 -O "$RUST_FILE2" 2>&1)"; then
+                echo "$GH_ERR"
+                if [[ $GH_ERR == *"not found"* ]]; then
+                  if ! GH_ERR="$(gh -R riscv-forks/electron release download rustc-"$RUST_REVISION" -p $RUST_TAR1 -O "$RUST_FILE1" 2>&1)"; then
+                    echo "$GH_ERR"
+                    if [[ $GH_ERR == *"not found"* ]]; then
+                      echo "Building Rust from source!"
+                      tools/rust/package_rust.py
+                      mv third_party/*$RUST_REVISION* "$TOOLCHAIN_OUTDIR/"
+                      GH_TOKEN="$CI_PAT" gh -R riscv-forks/electron release create -t "Rust Toolchain $RUST_REVISION" \
+                        --target README rustc-$RUST_REVISION "$TOOLCHAIN_OUTDIR/"*$RUST_REVISION*
+                      if [ -f "$RUST_FILE1" ]; then
+                        RUST_FILE="$RUST_FILE1"
+                      else
+                        RUST_FILE="$RUST_FILE2"
+                      fi
+                    else
+                      rm -f "RUST_FILE2"
+                    fi
+                  else
+                    RUST_FILE="$RUST_FILE1"
+                  fi
+                else
+                  rm -f "$RUST_FILE2"
+                fi
               else
-                rm -f "$RUST_FILE"
+                RUST_FILE="$RUST_FILE2"
               fi
+            else
+              RUST_FILE="$RUST_FILE2"
             fi
+          else
+            RUST_FILE="$RUST_FILE1"
           fi
           # Unpack Rust
           cd third_party/
