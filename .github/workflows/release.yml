@@ -11,7 +11,7 @@ env:
   ELECTRON_FINAL_DIR: /home/kxxt/electron-ci/artifacts/releases
   SRC_DIR: /home/kxxt/electron-ci/sources/electron/src
   OUT_DIR: /home/kxxt/electron-ci/sources/electron/src/out/Release-riscv64
-  ELECTRON_TAG: v26.0.0-nightly.20230524
+  ELECTRON_TAG: v26.0.0-nightly.20230510-riscv
   ELECTRON_RISCV_REV: 1
   GN_EXTRA_ARGS: "target_cpu = \"riscv64\" is_clang = true cc_wrapper=\"ccache\" use_gnome_keyring=false"
   CCACHE_CPP2: 'yes'
@@ -27,7 +27,7 @@ jobs:
         name: Check if we should build
         run: echo "should-build=true" >> "$GITHUB_OUTPUT"
   Cross-Build-Electron-From-x64:
-    runs-on: shinx
+    runs-on: minun
     needs: Figure-Out-What-To-Build
     if: ${{ needs.Figure-Out-What-To-Build.outputs.should-build == 'true' }}
     steps:
@@ -129,7 +129,7 @@ jobs:
           cd "$SRC_DIR"
           autoninja -C "$OUT_DIR" electron:electron_symbols
           electron/script/copy-debug-symbols.py --target-cpu=riscv64 -d "$OUT_DIR" --out-dir="$OUT_DIR"/debug --compress || echo "warn: Failed to copy debug symbols"
-          electron/script/strip-binaries.py -d "$OUT_DIR" --target-cpu riscv64 || eu-strip 'chrome-sandbox' 'chrome_crashpad_handler' 'electron' 'libEGL.so' 'libGLESv2.so' 'libffmpeg.so' 'libvk_swiftshader.so'
+          electron/script/strip-binaries.py -d "$OUT_DIR" --target-cpu riscv64 || env -C "$OUT_DIR" eu-strip 'chrome_sandbox' 'chrome_crashpad_handler' 'electron' 'libEGL.so' 'libGLESv2.so' 'libffmpeg.so' 'libvk_swiftshader.so'
           electron/script/add-debug-link.py --target-cpu=riscv64 -d "$OUT_DIR" --debug-dir="$OUT_DIR"/debug || echo "warn: Failed to add debug link"
           autoninja -C "$OUT_DIR" electron:licenses
           autoninja -C "$OUT_DIR" electron:electron_version_file
