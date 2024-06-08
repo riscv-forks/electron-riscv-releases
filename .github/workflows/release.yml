@@ -100,7 +100,7 @@ jobs:
               # Download rust from GitHub releases
               if ! GH_ERR="$(gh -R riscv-forks/electron release download rustc-"$RUST_REVISION" -p $RUST_TAR2 -O "$RUST_FILE2" 2>&1)"; then
                 echo "$GH_ERR"
-                if [[ $GH_ERR == *"not found"* ]]; then
+                if [[ $GH_ERR == *"not found"* || $GH_ERR == *"no assets match the file pattern"* ]]; then
                   if ! GH_ERR="$(gh -R riscv-forks/electron release download rustc-"$RUST_REVISION" -p $RUST_TAR1 -O "$RUST_FILE1" 2>&1)"; then
                     echo "$GH_ERR"
                     if [[ $GH_ERR == *"not found"* ]]; then
