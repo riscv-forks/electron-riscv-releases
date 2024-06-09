@@ -11,8 +11,8 @@ env:
   ELECTRON_FINAL_DIR: /home/kxxt/electron-ci/artifacts/releases
   SRC_DIR: /home/kxxt/electron-ci/sources/electron/src
   OUT_DIR: /home/kxxt/electron-ci/sources/electron/src/out/Release-riscv64
-  ELECTRON_TAG: v26.0.0-nightly.20230523cr.6a609fb2d6c29.v8.8d8a6c1
-  ELECTRON_RISCV_REV: 1
+  ELECTRON_TAG: v26.0.0-nightly.20230523cr.6a609fb2d6c29
+  ELECTRON_RISCV_REV: 2
   GN_EXTRA_ARGS: "target_cpu = \"riscv64\" is_clang = true cc_wrapper=\"ccache\" use_gnome_keyring=false"
   CCACHE_CPP2: 'yes'
   CCACHE_SLOPPINESS: time_macros
@@ -27,7 +27,7 @@ jobs:
         name: Check if we should build
         run: echo "should-build=true" >> "$GITHUB_OUTPUT"
   Cross-Build-Electron-From-x64:
-    runs-on: shinx
+    runs-on: minun
     needs: Figure-Out-What-To-Build
     if: ${{ needs.Figure-Out-What-To-Build.outputs.should-build == 'true' }}
     steps:
