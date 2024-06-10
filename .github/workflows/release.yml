@@ -27,7 +27,7 @@ jobs:
         name: Check if we should build
         run: echo "should-build=true" >> "$GITHUB_OUTPUT"
   Cross-Build-Electron-From-x64:
-    runs-on: minun
+    runs-on: shinx
     needs: Figure-Out-What-To-Build
     if: ${{ needs.Figure-Out-What-To-Build.outputs.should-build == 'true' }}
     steps:
@@ -151,6 +151,7 @@ jobs:
         run: |
           set -ex
           cd "$SRC_DIR"
+          rm -rf "$OUT_DIR"/breakpad_symbols
           autoninja -C "$OUT_DIR" electron:electron_symbols || echo "Failed to run electron:electron_symbols"
           electron/script/copy-debug-symbols.py --target-cpu=riscv64 -d "$OUT_DIR" --out-dir="$OUT_DIR"/debug --compress || echo "warn: Failed to copy debug symbols"
           electron/script/strip-binaries.py -d "$OUT_DIR" --target-cpu riscv64 || env -C "$OUT_DIR" eu-strip 'chrome_sandbox' 'chrome_crashpad_handler' 'electron' 'libEGL.so' 'libGLESv2.so' 'libffmpeg.so' 'libvk_swiftshader.so'
