@@ -24,7 +24,7 @@ repo=riscv-forks/electron-riscv-releases
 version=$1
 riscv_revision=$2
 
-if gh release view v$version > /dev/null 2>&1; then
+if gh -R riscv-forks/electron-riscv-releases release view v$version > /dev/null 2>&1; then
   echo "Release v$version exists, will clobber upload"
   release_action=edit
 else

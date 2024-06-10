@@ -263,7 +263,7 @@ jobs:
           (commit $(git -C "$SRC_DIR/electron" rev-parse HEAD))" \
             $(find . -type f -size -2147483648c)
           # Create/upload releases for compatible electron tag
-          if gh release view "$ELECTRON_TAG"; then
+          if gh -R riscv-forks/electron-riscv-releases release view "$ELECTRON_TAG"; then
             # A previous release exists
             RELEASE_ACTION=edit            
           else
