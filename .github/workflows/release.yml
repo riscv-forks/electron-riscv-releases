@@ -27,7 +27,7 @@ jobs:
         name: Check if we should build
         run: echo "should-build=true" >> "$GITHUB_OUTPUT"
   Cross-Build-Electron-From-x64:
-    runs-on: minun
+    runs-on: self-hosted
     needs: Figure-Out-What-To-Build
     if: ${{ needs.Figure-Out-What-To-Build.outputs.should-build == 'true' }}
     steps:
