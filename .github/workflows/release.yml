@@ -90,10 +90,10 @@ jobs:
         run: |
           set -ex
           cd "$SRC_DIR"
-          if [ dpkg --compare-versions "${ELECTRON_TAG#v}" gt 30 ]; then
-            echo "Google's prebuilt rust toolchain already satisifies the requirement, skipping.."
-            exit 0
-          fi
+          # if [ dpkg --compare-versions "${ELECTRON_TAG#v}" gt 30 ]; then
+          #   echo "Google's prebuilt rust toolchain already satisifies the requirement, skipping.."
+          #   exit 0
+          # fi
           RUST_REVISION="$(tools/rust/update_rust.py --print-package-version)"
           RUST_TAR1=rust-toolchain-"$RUST_REVISION".tar.xz
           RUST_TAR2=rust-toolchain-"$RUST_REVISION".tgz
