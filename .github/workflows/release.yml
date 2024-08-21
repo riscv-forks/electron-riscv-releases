@@ -207,6 +207,10 @@ jobs:
       - name: Build chromedriver
         run: |
           set -ex
+          if dpkg --compare-versions "${ELECTRON_TAG#v}" ge 32; then
+            echo "FIXME: skipping chromium driver build for electron 32"
+            exit 0
+          fi
           cd "$SRC_DIR"
           ./buildtools/linux64/gn gen out/chromedriver-riscv --args="import(\"//electron/build/args/release.gn\") is_component_ffmpeg=false proprietary_codecs=false $GN_EXTRA_ARGS"
           autoninja -C out/chromedriver-riscv electron:electron_chromedriver
