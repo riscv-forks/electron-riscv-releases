@@ -12,7 +12,7 @@ env:
   SRC_DIR: /home/kxxt/electron-ci/sources/electron/src
   OUT_DIR: /home/kxxt/electron-ci/sources/electron/src/out/Release-riscv64
   ELECTRON_TAG: v32.0.0
-  ELECTRON_RISCV_REV: 1
+  ELECTRON_RISCV_REV: 2
   GN_EXTRA_ARGS: "target_cpu = \"riscv64\" is_clang = true cc_wrapper=\"ccache\" use_gnome_keyring=false"
   CCACHE_CPP2: 'yes'
   CCACHE_SLOPPINESS: time_macros
@@ -90,10 +90,10 @@ jobs:
         run: |
           set -ex
           cd "$SRC_DIR"
-          # if [ dpkg --compare-versions "${ELECTRON_TAG#v}" gt 30 ]; then
-          #   echo "Google's prebuilt rust toolchain already satisifies the requirement, skipping.."
-          #   exit 0
-          # fi
+          if dpkg --compare-versions "${ELECTRON_TAG#v}" gt 30; then
+            echo "Google's prebuilt rust toolchain already satisifies the requirement, skipping.."
+            exit 0
+          fi
           RUST_REVISION="$(tools/rust/update_rust.py --print-package-version)"
           RUST_TAR1=rust-toolchain-"$RUST_REVISION".tar.xz
           RUST_TAR2=rust-toolchain-"$RUST_REVISION".tgz
@@ -207,10 +207,10 @@ jobs:
       - name: Build chromedriver
         run: |
           set -ex
-          if dpkg --compare-versions "${ELECTRON_TAG#v}" ge 32; then
-            echo "FIXME: skipping chromium driver build for electron 32"
-            exit 0
-          fi
+          #if dpkg --compare-versions "${ELECTRON_TAG#v}" ge 32; then
+          #  echo "FIXME: skipping chromium driver build for electron 32"
+          #  exit 0
+          #fi
           cd "$SRC_DIR"
           ./buildtools/linux64/gn gen out/chromedriver-riscv --args="import(\"//electron/build/args/release.gn\") is_component_ffmpeg=false proprietary_codecs=false $GN_EXTRA_ARGS"
           autoninja -C out/chromedriver-riscv electron:electron_chromedriver
