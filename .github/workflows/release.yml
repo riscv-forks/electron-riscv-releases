@@ -11,7 +11,7 @@ env:
   ELECTRON_FINAL_DIR: /home/kxxt/electron-ci/artifacts/releases
   SRC_DIR: /home/kxxt/electron-ci/sources/electron/src
   OUT_DIR: /home/kxxt/electron-ci/sources/electron/src/out/Release-riscv64
-  ELECTRON_TAG: v34.0.0-beta.16
+  ELECTRON_TAG: v34.0.0
   ELECTRON_RISCV_REV: 1
   GN_EXTRA_ARGS: "target_cpu = \"riscv64\" is_clang = true cc_wrapper=\"ccache\" use_gnome_keyring=false treat_warnings_as_errors=false use_debug_fission=false symbol_level=1"
   CCACHE_CPP2: 'yes'
