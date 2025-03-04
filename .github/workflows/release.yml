@@ -25,7 +25,7 @@ jobs:
     steps:
       - id: should-build
         name: Check if we should build
-        run: echo "should-build=true" >> "$GITHUB_OUTPUT"
+        run: echo "should-build=false" >> "$GITHUB_OUTPUT"
   Cross-Build-Electron-From-x64:
     runs-on: self-hosted
     needs: Figure-Out-What-To-Build
@@ -146,7 +146,8 @@ jobs:
         run: |
           set -ex
           cd "$SRC_DIR"
-          ./buildtools/linux64/gn gen "$OUT_DIR" --args="import(\"//electron/build/args/release.gn\") $GN_EXTRA_ARGS"
+          export PATH="$PWD/buildtools/linux64:$PATH"
+          gn gen "$OUT_DIR" --args="import(\"//electron/build/args/release.gn\") $GN_EXTRA_ARGS"
       - name: Run Ninja
         run: |
           set -ex
@@ -193,8 +194,9 @@ jobs:
         run: |
           set -ex
           cd "$SRC_DIR"
+          export PATH="$PWD/buildtools/linux64:$PATH"
           autoninja -C "$OUT_DIR" electron:electron_mksnapshot
-          ./buildtools/linux64/gn desc "$OUT_DIR" v8:run_mksnapshot_default args > "$OUT_DIR"/mksnapshot_args
+          gn desc "$OUT_DIR" v8:run_mksnapshot_default args > "$OUT_DIR"/mksnapshot_args
           # Remove unused args from mksnapshot_args
           sed -i '/.*builtins-pgo/d' "$OUT_DIR"/mksnapshot_args
           sed -i '/--turbo-profiling-input/d' "$OUT_DIR"/mksnapshot_args
@@ -215,7 +217,8 @@ jobs:
           #fi
           cd "$SRC_DIR"
           rm -rf out/chromedriver-riscv
-          ./buildtools/linux64/gn gen out/chromedriver-riscv --args="import(\"//electron/build/args/release.gn\") is_component_ffmpeg=false proprietary_codecs=false $GN_EXTRA_ARGS"
+          export PATH="$PWD/buildtools/linux64:$PATH"
+          gn gen out/chromedriver-riscv --args="import(\"//electron/build/args/release.gn\") is_component_ffmpeg=false proprietary_codecs=false $GN_EXTRA_ARGS"
           autoninja -C out/chromedriver-riscv electron:electron_chromedriver
           electron/script/strip-binaries.py --target-cpu="riscv64" --file out/chromedriver-riscv/chromedriver
           autoninja -C out/chromedriver-riscv electron:electron_chromedriver_zip
@@ -236,7 +239,8 @@ jobs:
         run: |
           set -ex
           cd "$SRC_DIR"
-          ./buildtools/linux64/gn gen out/ffmpeg-riscv --args="import(\"//electron/build/args/ffmpeg.gn\") $GN_EXTRA_ARGS"
+          export PATH="$PWD/buildtools/linux64:$PATH"
+          gn gen out/ffmpeg-riscv --args="import(\"//electron/build/args/ffmpeg.gn\") $GN_EXTRA_ARGS"
           ninja -C out/ffmpeg-riscv electron:electron_ffmpeg_zip
           RELEASE_DIR="$ELECTRON_FINAL_DIR/$ELECTRON_TAG-$ELECTRON_RISCV_REV"
           mv out/ffmpeg-riscv/ffmpeg.zip "$RELEASE_DIR/ffmpeg-$ELECTRON_TAG-linux-riscv64.zip"
