@@ -214,8 +214,10 @@ jobs:
           sed -i '/.*builtins-pgo/d' "$OUT_DIR"/mksnapshot_args
           sed -i '/--turbo-profiling-input/d' "$OUT_DIR"/mksnapshot_args
           sed -i '/The gn arg use_goma=true .*/d' "$OUT_DIR"/mksnapshot_args
-          electron/script/strip-binaries.py --file "$OUT_DIR"/clang_x64_v8_riscv64/mksnapshot
-          electron/script/strip-binaries.py --file "$OUT_DIR"/clang_x64_v8_riscv64/v8_context_snapshot_generator
+          if dpkg --compare-versions "${ELECTRON_TAG#v}" lt 35; then
+            electron/script/strip-binaries.py --file "$OUT_DIR"/clang_x64_v8_riscv64/mksnapshot
+            electron/script/strip-binaries.py --file "$OUT_DIR"/clang_x64_v8_riscv64/v8_context_snapshot_generator
+          fi
           autoninja -C "$OUT_DIR" electron:electron_mksnapshot_zip
           cd "$OUT_DIR"
           RELEASE_DIR="$ELECTRON_FINAL_DIR/$ELECTRON_TAG-$ELECTRON_RISCV_REV"
@@ -233,7 +235,9 @@ jobs:
           export PATH="$PWD/buildtools/linux64:$PATH"
           gn gen out/chromedriver-riscv --args="import(\"//electron/build/args/release.gn\") is_component_ffmpeg=false proprietary_codecs=false $GN_EXTRA_ARGS"
           autoninja -C out/chromedriver-riscv electron:electron_chromedriver
-          electron/script/strip-binaries.py --target-cpu="riscv64" --file out/chromedriver-riscv/chromedriver
+          if dpkg --compare-versions "${ELECTRON_TAG#v}" lt 35; then
+            electron/script/strip-binaries.py --target-cpu="riscv64" --file out/chromedriver-riscv/chromedriver
+          fi
           autoninja -C out/chromedriver-riscv electron:electron_chromedriver_zip
           RELEASE_DIR="$ELECTRON_FINAL_DIR/$ELECTRON_TAG-$ELECTRON_RISCV_REV"
           mv out/chromedriver-riscv/chromedriver.zip "$RELEASE_DIR/chromedriver-$ELECTRON_TAG-linux-riscv64.zip"
