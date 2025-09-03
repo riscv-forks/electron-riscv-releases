@@ -26,7 +26,7 @@ jobs:
     steps:
       - id: should-build
         name: Check if we should build
-        run: echo "should-build=true" >> "$GITHUB_OUTPUT"
+        run: echo "should-build=false" >> "$GITHUB_OUTPUT"
   Cross-Build-Electron-From-x64:
     runs-on: self-hosted
     needs: Figure-Out-What-To-Build
@@ -67,6 +67,10 @@ jobs:
         run: |
           set -ex
           cd "$SRC_DIR"
+          if dpkg --compare-versions "${ELECTRON_TAG#v}" gt 37; then
+            echo "Google's prebuilt clang toolchain already satisfies the requirement, skipping.."
+            exit 0
+          fi
           CLANG_REVISION="$(tools/clang/scripts/update.py --print-revision)"
           CLANG_TAR=clang-"$CLANG_REVISION".tar.xz
           CLANG_FILE="$TOOLCHAIN_OUTDIR/$CLANG_TAR"
@@ -95,7 +99,7 @@ jobs:
           set -ex
           cd "$SRC_DIR"
           if dpkg --compare-versions "${ELECTRON_TAG#v}" gt 31; then
-            echo "Google's prebuilt rust toolchain already satisifies the requirement, skipping.."
+            echo "Google's prebuilt rust toolchain already satisfies the requirement, skipping.."
             exit 0
           fi
           RUST_REVISION="$(tools/rust/update_rust.py --print-package-version)"
@@ -163,9 +167,15 @@ jobs:
           cd "$SRC_DIR"
           rm -rf "$OUT_DIR"/breakpad_symbols
           autoninja -C "$OUT_DIR" electron:electron_symbols || echo "Failed to run electron:electron_symbols"
-          electron/script/copy-debug-symbols.py --target-cpu=riscv64 -d "$OUT_DIR" --out-dir="$OUT_DIR"/debug --compress || echo "warn: Failed to copy debug symbols"
-          electron/script/strip-binaries.py -d "$OUT_DIR" --target-cpu riscv64 || env -C "$OUT_DIR" eu-strip 'chrome_sandbox' 'chrome_crashpad_handler' 'electron' 'libEGL.so' 'libGLESv2.so' 'libffmpeg.so' 'libvk_swiftshader.so'
-          electron/script/add-debug-link.py --target-cpu=riscv64 -d "$OUT_DIR" --debug-dir="$OUT_DIR"/debug || echo "warn: Failed to add debug link"
+          if dpkg --compare-versions "${ELECTRON_TAG#v}" lt 35; then
+            electron/script/copy-debug-symbols.py --target-cpu=riscv64 -d "$OUT_DIR" --out-dir="$OUT_DIR"/debug --compress || echo "warn: Failed to copy debug symbols"
+            electron/script/strip-binaries.py -d "$OUT_DIR" --target-cpu riscv64 || env -C "$OUT_DIR" eu-strip 'chrome_sandbox' 'chrome_crashpad_handler' 'electron' 'libEGL.so' 'libGLESv2.so' 'libffmpeg.so' 'libvk_swiftshader.so'
+            electron/script/add-debug-link.py --target-cpu=riscv64 -d "$OUT_DIR" --debug-dir="$OUT_DIR"/debug || echo "warn: Failed to add debug link"
+          else
+            # Electron >= 35 will automatically strip the binary and save debug symbols
+            # Here we trigger that by building the electron_dist_zip that needs stripped binaries
+            ninja -C "$OUT_DIR" electron:electron_dist_zip
+          fi
           autoninja -C "$OUT_DIR" electron:licenses
           autoninja -C "$OUT_DIR" electron:electron_version_file
           DELETE_DSYMS_AFTER_ZIP=1 electron/script/zip-symbols.py -b "$(realpath "$OUT_DIR")"
