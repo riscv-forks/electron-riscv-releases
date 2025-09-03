@@ -47,8 +47,8 @@ jobs:
       - name: Prepare Sysroot
         run: |
           set -ex
-          SYSROOT_REVISION=sysroot-20240131T153825Z-4
-          SYSROOT_TAR=debian_sid_riscv64_sysroot.tar.xz
+          SYSROOT_REVISION=sysroot-20250129T203412Z-1
+          SYSROOT_TAR=debian_trixie_riscv64_sysroot.tar.xz
           SYSROOT_FILE="$TOOLCHAIN_OUTDIR/$SYSROOT_REVISION/$SYSROOT_TAR"
           if ! [ -f "$SYSROOT_FILE" ]; then
             # Download sysroot from GitHub releases
@@ -56,11 +56,11 @@ jobs:
           fi
           # Unpack the sysroot
           cd "$SRC_DIR"
-          rm -rf build/linux/debian_sid_riscv64-sysroot
-          mkdir build/linux/debian_sid_riscv64-sysroot
-          tar xf "$SYSROOT_FILE" --directory=build/linux/debian_sid_riscv64-sysroot
+          rm -rf build/linux/debian_trixie_riscv64-sysroot
+          mkdir build/linux/debian_trixie_riscv64-sysroot
+          tar xf "$SYSROOT_FILE" --directory=build/linux/debian_trixie_riscv64-sysroot
           mkdir -p third_party/llvm-build-tools/
-          ln -s ../../build/linux/debian_sid_riscv64-sysroot third_party/llvm-build-tools/debian_sid_riscv64_sysroot
+          ln -s ../../build/linux/debian_trixie_riscv64-sysroot third_party/llvm-build-tools/debian_trixie_riscv64_sysroot
       - name: Download or Build Chromium flavor Clang
         env:
           CI_PAT: ${{ secrets.CI_PAT }}
