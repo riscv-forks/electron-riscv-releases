@@ -231,16 +231,19 @@ jobs:
           #  exit 0
           #fi
           cd "$SRC_DIR"
-          rm -rf out/chromedriver-riscv
           export PATH="$PWD/buildtools/linux64:$PATH"
-          gn gen out/chromedriver-riscv --args="import(\"//electron/build/args/release.gn\") is_component_ffmpeg=false proprietary_codecs=false $GN_EXTRA_ARGS"
-          autoninja -C out/chromedriver-riscv electron:electron_chromedriver
           if dpkg --compare-versions "${ELECTRON_TAG#v}" lt 35; then
+            rm -rf out/chromedriver-riscv
+            gn gen out/chromedriver-riscv --args="import(\"//electron/build/args/release.gn\") is_component_ffmpeg=false proprietary_codecs=false $GN_EXTRA_ARGS"
+            autoninja -C out/chromedriver-riscv electron:electron_chromedriver
             electron/script/strip-binaries.py --target-cpu="riscv64" --file out/chromedriver-riscv/chromedriver
+            CHROMEDRIVER_OUTDIR=out/chromedriver-riscv
+          else
+            CHROMEDRIVER_OUTDIR="$OUT_DIR"
           fi
-          autoninja -C out/chromedriver-riscv electron:electron_chromedriver_zip
+          autoninja -C "$CHROMEDRIVER_OUTDIR" electron:electron_chromedriver_zip
           RELEASE_DIR="$ELECTRON_FINAL_DIR/$ELECTRON_TAG-$ELECTRON_RISCV_REV"
-          mv out/chromedriver-riscv/chromedriver.zip "$RELEASE_DIR/chromedriver-$ELECTRON_TAG-linux-riscv64.zip"
+          mv "$CHROMEDRIVER_OUTDIR"/chromedriver.zip "$RELEASE_DIR/chromedriver-$ELECTRON_TAG-linux-riscv64.zip"
       - name: Build Node.JS headers
         run: |
           set -ex
@@ -257,10 +260,15 @@ jobs:
           set -ex
           cd "$SRC_DIR"
           export PATH="$PWD/buildtools/linux64:$PATH"
-          gn gen out/ffmpeg-riscv --args="import(\"//electron/build/args/ffmpeg.gn\") $GN_EXTRA_ARGS"
-          ninja -C out/ffmpeg-riscv electron:electron_ffmpeg_zip
+          if dpkg --compare-versions "${ELECTRON_TAG#v}" lt 35; then
+            gn gen out/ffmpeg-riscv --args="import(\"//electron/build/args/ffmpeg.gn\") $GN_EXTRA_ARGS"
+            FFMPEG_OUTDIR=out/ffmpeg-riscv
+          else
+            FFMPEG_OUTDIR="$OUT_DIR"
+          fi
+          ninja -C "$FFMPEG_OUTDIR" electron:electron_ffmpeg_zip
           RELEASE_DIR="$ELECTRON_FINAL_DIR/$ELECTRON_TAG-$ELECTRON_RISCV_REV"
-          mv out/ffmpeg-riscv/ffmpeg.zip "$RELEASE_DIR/ffmpeg-$ELECTRON_TAG-linux-riscv64.zip"
+          mv "$FFMPEG_OUTDIR"/ffmpeg.zip "$RELEASE_DIR/ffmpeg-$ELECTRON_TAG-linux-riscv64.zip"
       - name: Build hunspell
         run: |
           set -ex
