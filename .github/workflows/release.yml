@@ -67,7 +67,7 @@ jobs:
         run: |
           set -ex
           cd "$SRC_DIR"
-          if dpkg --compare-versions "${ELECTRON_TAG#v}" gt 37; then
+          if dpkg --compare-versions "${ELECTRON_TAG#v}" gt 37.114514; then
             echo "Google's prebuilt clang toolchain already satisfies the requirement, skipping.."
             exit 0
           fi
