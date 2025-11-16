@@ -15,8 +15,9 @@ env:
   ELECTRON_RISCV_REV: 1
   ELECTRON_OUT_DIR: Release-riscv64
   GN_EXTRA_ARGS: "target_cpu = \"riscv64\" is_clang = true cc_wrapper=\"ccache\" use_gnome_keyring=false treat_warnings_as_errors=false use_debug_fission=false symbol_level=1"
-  CCACHE_CPP2: 'yes'
-  CCACHE_SLOPPINESS: time_macros
+  CCACHE_SLOPPINESS: time_macros,modules
+  CCACHE_DEPEND: true
+  CCACHE_DIRECT: true
 
 jobs:
   Figure-Out-What-To-Build:
@@ -26,7 +27,7 @@ jobs:
     steps:
       - id: should-build
         name: Check if we should build
-        run: echo "should-build=true" >> "$GITHUB_OUTPUT"
+        run: echo "should-build=false" >> "$GITHUB_OUTPUT"
   Cross-Build-Electron-From-x64:
     runs-on: large-runner
     needs: Figure-Out-What-To-Build
