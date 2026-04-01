@@ -378,7 +378,8 @@ jobs:
           GH_TOKEN: ${{ secrets.CI_PAT }}
         run: |
           set -ex
-          gh pr comment "$SOURCE_PR_NUMBER" -R "$SOURCE_REPO" --body "Automated release build for $ELECTRON_TAG merged successfully.
+          gh pr comment "$SOURCE_PR_NUMBER" -R "$SOURCE_REPO" --body "**Automated Comment**
+          Automated release build for $ELECTRON_TAG succeeded.
 
           Releases:
           - https://github.com/riscv-forks/electron-riscv-releases/releases/tag/$ELECTRON_TAG.riscv$ELECTRON_RISCV_REV

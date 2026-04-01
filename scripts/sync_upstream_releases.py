@@ -202,7 +202,7 @@ def ensure_base_branch(plan: ReleasePlan, checkout_dir: Path, source_branches: d
 
 def create_pull_request(repo: str, head: str, base: str, token: str, previous_branch: str) -> dict:
     body = {
-        "title": f"Build {base} from {previous_branch}",
+        "title": f"{base}: rebase from {previous_branch}",
         "head": head,
         "base": base,
         "body": (
