@@ -1,0 +1,32 @@
+name: Sync Upstream Releases
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  Sync-Upstream-Releases:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Discover releases and create downstream PRs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SOURCE_REPO_TOKEN: ${{ secrets.CI_PAT }}
+          RELEASES_REPO: ${{ github.repository }}
+          SOURCE_REPO: riscv-forks/electron
+          RELEASE_WORKFLOW: release.yml
+        run: python3 scripts/sync_upstream_releases.py
