@@ -1,9 +1,31 @@
 name: Release
 run-name: ${{ github.actor }} is releasing a new electron riscv build
 on:
+  workflow_dispatch:
+    inputs:
+      electron_tag:
+        description: Electron tag to build
+        required: true
+        type: string
+      source_ref:
+        description: Source repo ref to build from
+        required: false
+        type: string
+      source_pr_number:
+        description: Source repo PR to merge after a successful build
+        required: false
+        type: string
+      source_repo:
+        description: Source repo that contains the Electron RISC-V branches
+        required: false
+        default: riscv-forks/electron
+        type: string
   push:
     branches:
       - main
+
+permissions:
+  contents: write
 
 env:
   GH_TOKEN: ${{ github.token }}
@@ -11,9 +33,12 @@ env:
   ELECTRON_FINAL_DIR: /home/kxxt/electron-ci/artifacts/releases
   SRC_DIR: /home/kxxt/electron-ci/sources/electron/src
   OUT_DIR: /home/kxxt/electron-ci/sources/electron/src/out/Release-riscv64
-  ELECTRON_TAG: v39.8.5
+  ELECTRON_TAG: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.electron_tag || 'v39.8.5' }}
   ELECTRON_RISCV_REV: 1
   ELECTRON_OUT_DIR: Release-riscv64
+  SOURCE_REF: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.source_ref || '' }}
+  SOURCE_PR_NUMBER: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.source_pr_number || '' }}
+  SOURCE_REPO: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.source_repo || 'riscv-forks/electron' }}
   GN_EXTRA_ARGS: "target_cpu = \"riscv64\" is_clang = true cc_wrapper=\"ccache\" use_gnome_keyring=false treat_warnings_as_errors=false use_debug_fission=false symbol_level=1"
   CCACHE_SLOPPINESS: time_macros,modules
   CCACHE_DEPEND: true
@@ -28,6 +53,18 @@ jobs:
       - id: should-build
         name: Check if we should build
         run: echo "should-build=true" >> "$GITHUB_OUTPUT"
+  Comment-On-Source-PR:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.source_pr_number != '' }}
+    steps:
+      - name: Comment on source repo PR with workflow run link
+        env:
+          GH_TOKEN: ${{ secrets.CI_PAT }}
+        run: |
+          set -ex
+          gh pr comment "$SOURCE_PR_NUMBER" -R "$SOURCE_REPO" --body "Automated release build started for $ELECTRON_TAG.
+
+          Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
   Cross-Build-Electron-From-x64:
     runs-on: large-runner
     needs: Figure-Out-What-To-Build
@@ -37,13 +74,15 @@ jobs:
       - name: Sync sources
         run: |
           set -ex
+          SOURCE_REF_RESOLVED="${SOURCE_REF:-${ELECTRON_TAG}-riscv}"
+          echo "SOURCE_REF_RESOLVED=$SOURCE_REF_RESOLVED" >> "$GITHUB_ENV"
           cd "$SRC_DIR/.."
           git -C src clean -fd
           rm -rf -- "$OUT_DIR"
           git -C src am --abort || true
           git -C src/electron fetch upstream --tags
           git -C src/electron fetch rv
-          git -C src/electron switch --detach rv/${ELECTRON_TAG}-riscv
+          git -C src/electron switch --detach "rv/$SOURCE_REF_RESOLVED"
           gclient sync --force
       - name: Prepare Sysroot
         run: |
@@ -293,15 +332,21 @@ jobs:
           set -ex
           RELEASE_DIR="$ELECTRON_FINAL_DIR/$ELECTRON_TAG-$ELECTRON_RISCV_REV"
           cd "$RELEASE_DIR"
+          SOURCE_REF_RESOLVED="${SOURCE_REF_RESOLVED:-${SOURCE_REF:-${ELECTRON_TAG}-riscv}}"
           rm -f SHASUMS256.txt
           for filename in *; do
             checksum=$(sha256sum "$filename" | cut -d ' ' -f 1)
             echo "$checksum *$filename" >> SHASUMS256.txt
           done
+          RELEASE_NOTES="Electron for riscv64 built from [$SOURCE_REF_RESOLVED](https://github.com/$SOURCE_REPO/tree/$SOURCE_REF_RESOLVED)
+          (commit $(git -C "$SRC_DIR/electron" rev-parse HEAD))"
+          if [ -n "$SOURCE_PR_NUMBER" ]; then
+            RELEASE_NOTES="$RELEASE_NOTES
+          Pull request: https://github.com/$SOURCE_REPO/pull/$SOURCE_PR_NUMBER"
+          fi
           gh -R riscv-forks/electron-riscv-releases release create "$ELECTRON_TAG.riscv$ELECTRON_RISCV_REV" \
             -t "Electron $ELECTRON_TAG for 64 Bit RISC-V" \
-            --notes "Electron for riscv64 built from [$ELECTRON_TAG-riscv branch](https://github.com/riscv-forks/electron/tree/$ELECTRON_TAG-riscv)
-          (commit $(git -C "$SRC_DIR/electron" rev-parse HEAD))" \
+            --notes "$RELEASE_NOTES" \
             $(find . -type f -size -2147483648c)
           # Create/upload releases for compatible electron tag
           if gh -R riscv-forks/electron-riscv-releases release view "$ELECTRON_TAG"; then
@@ -317,3 +362,24 @@ jobs:
           This release will be re-uploaded if a new riscv64 revision is made.
           Original release: https://github.com/riscv-forks/electron-riscv-releases/releases/tag/$ELECTRON_TAG.riscv$ELECTRON_RISCV_REV"
           gh -R riscv-forks/electron-riscv-releases release upload --clobber "$ELECTRON_TAG" $(find . -type f -size -2147483648c)
+  Merge-Source-PR:
+    runs-on: ubuntu-latest
+    needs: Cross-Build-Electron-From-x64
+    if: ${{ needs.Cross-Build-Electron-From-x64.result == 'success' && github.event_name == 'workflow_dispatch' && github.event.inputs.source_pr_number != '' }}
+    steps:
+      - name: Merge source repo PR by rebase
+        env:
+          GH_TOKEN: ${{ secrets.CI_PAT }}
+        run: |
+          set -ex
+          gh pr merge "$SOURCE_PR_NUMBER" -R "$SOURCE_REPO" --rebase --delete-branch
+      - name: Comment on source repo PR with release links
+        env:
+          GH_TOKEN: ${{ secrets.CI_PAT }}
+        run: |
+          set -ex
+          gh pr comment "$SOURCE_PR_NUMBER" -R "$SOURCE_REPO" --body "Automated release build for $ELECTRON_TAG merged successfully.
+
+          Releases:
+          - https://github.com/riscv-forks/electron-riscv-releases/releases/tag/$ELECTRON_TAG.riscv$ELECTRON_RISCV_REV
+          - https://github.com/riscv-forks/electron-riscv-releases/releases/tag/$ELECTRON_TAG"

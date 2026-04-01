@@ -40,3 +40,14 @@ ExecStart=systemd-nspawn --quiet --keep-unit --boot --link-journal=try-guest --n
 
 FIXME: Create a systemd service for the github runner.
 
+
+## Automation
+
+Upstream stable releases are discovered from https://releases.electronjs.org/releases.json.
+The scheduled workflow creates a clean `vX.Y.Z-riscv` branch in the source repo,
+rebases the latest existing `vX.*.*-riscv` patch stack onto that release,
+opens a PR from `ci/release-vX.Y.Z-riscv` into `vX.Y.Z-riscv`,
+and dispatches the release workflow in this repository against that PR branch.
+
+The automation requires `CI_PAT` to have write access to https://github.com/riscv-forks/electron
+so it can push branches, open PRs, and merge them after a successful build.

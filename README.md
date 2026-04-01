@@ -35,4 +35,3 @@ Note that if a new riscv revision is made for an upstream version, that release 
 - For now the CI uses a persistent systemd-nspawn container. 
 Ideally it should be ephemeral and well documented in a Dockerfile.
 - The CI yaml and procedure need to be improved.
-- The CI can't do parallel builds for now.
