@@ -55,6 +55,7 @@ def log(message: str) -> None:
 
 
 def run(cmd: list[str], *, cwd: Path | None = None, capture: bool = False) -> str:
+    log(f"Running: {' '.join(cmd)} (cwd={cwd})")
     result = subprocess.run(
         cmd,
         cwd=str(cwd) if cwd else None,
@@ -195,7 +196,8 @@ def ensure_base_branch(plan: ReleasePlan, checkout_dir: Path, source_branches: d
     if plan.base_branch in source_branches:
         return
     run(["git", "fetch", "upstream", f"refs/tags/{plan.target.tag}:refs/tags/{plan.target.tag}"], cwd=checkout_dir)
-    run(["git", "push", "origin", f"refs/tags/{plan.target.tag}:refs/heads/{plan.base_branch}"], cwd=checkout_dir)
+    run(["git", "switch", "-C", plan.base_branch, f"refs/tags/{plan.target.tag}"], cwd=checkout_dir)
+    run(["git", "push", "-u", "origin", plan.base_branch], cwd=checkout_dir)
 
 
 def create_pull_request(repo: str, head: str, base: str, token: str, previous_branch: str) -> dict:
