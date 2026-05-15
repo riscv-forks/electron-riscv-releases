@@ -78,6 +78,7 @@ jobs:
           echo "SOURCE_REF_RESOLVED=$SOURCE_REF_RESOLVED" >> "$GITHUB_ENV"
           cd "$SRC_DIR/.."
           git -C src clean -fd
+          git -C src/third_party/dawn clean -fd || true
           rm -rf -- "$OUT_DIR"
           git -C src am --abort || true
           git -C src/electron fetch upstream --tags
