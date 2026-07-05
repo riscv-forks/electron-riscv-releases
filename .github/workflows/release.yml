@@ -33,7 +33,7 @@ env:
   ELECTRON_FINAL_DIR: /home/kxxt/electron-ci/artifacts/releases
   SRC_DIR: /home/kxxt/electron-ci/sources/electron/src
   OUT_DIR: /home/kxxt/electron-ci/sources/electron/src/out/Release-riscv64
-  ELECTRON_TAG: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.electron_tag || 'v39.8.5' }}
+  ELECTRON_TAG: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.electron_tag || 'v43.0.0' }}
   ELECTRON_RISCV_REV: 1
   ELECTRON_OUT_DIR: Release-riscv64
   SOURCE_REF: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.source_ref || '' }}
