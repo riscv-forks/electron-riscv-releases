@@ -1,5 +1,5 @@
 name: Release
-run-name: ${{ github.actor }} is releasing a new electron riscv build
+run-name: Release Electron ${{ github.event_name == 'workflow_dispatch' && inputs.electron_tag || 'v43.0.0' }} for RISC-V
 on:
   workflow_dispatch:
     inputs:

@@ -22,6 +22,9 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Test release discovery
+        run: python3 -m unittest discover -s tests -v
+
       - name: Discover releases and create downstream PRs
         env:
           GITHUB_TOKEN: ${{ github.token }}
