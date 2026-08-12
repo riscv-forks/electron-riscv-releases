@@ -1,5 +1,5 @@
 name: Release
-run-name: Release Electron ${{ github.event_name == 'workflow_dispatch' && inputs.electron_tag || 'v43.0.0' }} for RISC-V
+run-name: Release Electron ${{ inputs.electron_tag }} for RISC-V
 on:
   workflow_dispatch:
     inputs:
@@ -20,10 +20,6 @@ on:
         required: false
         default: riscv-forks/electron
         type: string
-  push:
-    branches:
-      - main
-
 permissions:
   contents: write
 
@@ -33,12 +29,12 @@ env:
   ELECTRON_FINAL_DIR: /home/kxxt/electron-ci/artifacts/releases
   SRC_DIR: /home/kxxt/electron-ci/sources/electron/src
   OUT_DIR: /home/kxxt/electron-ci/sources/electron/src/out/Release-riscv64
-  ELECTRON_TAG: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.electron_tag || 'v43.0.0' }}
+  ELECTRON_TAG: ${{ inputs.electron_tag }}
   ELECTRON_RISCV_REV: 1
   ELECTRON_OUT_DIR: Release-riscv64
-  SOURCE_REF: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.source_ref || '' }}
-  SOURCE_PR_NUMBER: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.source_pr_number || '' }}
-  SOURCE_REPO: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.source_repo || 'riscv-forks/electron' }}
+  SOURCE_REF: ${{ inputs.source_ref }}
+  SOURCE_PR_NUMBER: ${{ inputs.source_pr_number }}
+  SOURCE_REPO: ${{ inputs.source_repo }}
   GN_EXTRA_ARGS: "target_cpu = \"riscv64\" is_clang = true cc_wrapper=\"ccache\" use_gnome_keyring=false treat_warnings_as_errors=false use_debug_fission=false symbol_level=1"
   CCACHE_SLOPPINESS: time_macros,modules
   CCACHE_DEPEND: true
