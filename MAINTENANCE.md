@@ -48,6 +48,10 @@ The scheduled workflow creates a clean `vX.Y.Z-riscv` branch in the source repo,
 rebases the latest existing `vX.*.*-riscv` patch stack onto that release,
 opens a PR from `ci/release-vX.Y.Z-riscv` into `vX.Y.Z-riscv`,
 and dispatches the release workflow in this repository against that PR branch.
+If rebasing leaves no downstream commits, the workflow skips the empty PR and
+dispatches the build directly from the clean `vX.Y.Z-riscv` branch. Partially
+prepared releases are retried instead of treating the clean target branch as a
+completed release.
 
 The automation requires `CI_PAT` to have write access to https://github.com/riscv-forks/electron
 so it can push branches, open PRs, and merge them after a successful build.

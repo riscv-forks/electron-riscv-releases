@@ -147,9 +147,32 @@ def latest_branches_by_major(branches: dict[str, str]) -> dict[int, str]:
     return {major: branch for major, (_, branch) in latest.items()}
 
 
+def latest_branch_before(branches: dict[str, str], target: Version) -> str | None:
+    latest: tuple[Version, str] | None = None
+    for branch in branches:
+        match = RISCV_BRANCH_RE.fullmatch(branch)
+        if not match:
+            continue
+        version = Version(int(match.group(2)), int(match.group(3)), int(match.group(4)))
+        if version.major != target.major or version >= target:
+            continue
+        if latest is None or version > latest[0]:
+            latest = (version, branch)
+    return latest[1] if latest else None
+
+
 def release_exists(repo: str, tag: str, token: str) -> bool:
     release = github_request(repo, f"releases/tags/{tag}", token)
     return release is not None
+
+
+def release_workflow_was_dispatched(repo: str, workflow: str, tag: str, token: str) -> bool:
+    query = urllib.parse.urlencode({"event": "workflow_dispatch", "per_page": 100})
+    payload = github_request(repo, f"actions/workflows/{workflow}/runs?{query}", token)
+    if not isinstance(payload, dict):
+        return False
+    expected_title = f"Release Electron {tag} for RISC-V"
+    return any(run.get("display_title") == expected_title for run in payload.get("workflow_runs", []))
 
 
 def find_existing_pr(repo: str, owner: str, base: str, head: str, token: str) -> dict | None:
@@ -180,7 +203,7 @@ def clone_source_repo(source_repo_auth_url: str, tempdir: Path) -> Path:
     return checkout_dir
 
 
-def prepare_release_branch(plan: ReleasePlan, checkout_dir: Path) -> None:
+def prepare_release_branch(plan: ReleasePlan, checkout_dir: Path) -> bool:
     previous_tag = plan.previous_branch.removesuffix("-riscv")
     run(["git", "fetch", "origin", plan.previous_branch], cwd=checkout_dir)
     run(["git", "fetch", "upstream", f"refs/tags/{previous_tag}:refs/tags/{previous_tag}"], cwd=checkout_dir)
@@ -190,6 +213,13 @@ def prepare_release_branch(plan: ReleasePlan, checkout_dir: Path) -> None:
     run(["git", "merge-base", "--is-ancestor", previous_tag, "HEAD"], cwd=checkout_dir)
     run(["git", "rebase", "--onto", plan.target.tag, previous_tag], cwd=checkout_dir)
     run(["git", "push", "--force", "origin", f"HEAD:refs/heads/{plan.head_branch}"], cwd=checkout_dir)
+    head_commit = run(["git", "rev-parse", "HEAD"], cwd=checkout_dir, capture=True).strip()
+    target_commit = run(
+        ["git", "rev-parse", f"{plan.target.tag}^{{commit}}"],
+        cwd=checkout_dir,
+        capture=True,
+    ).strip()
+    return head_commit != target_commit
 
 
 def ensure_base_branch(plan: ReleasePlan, checkout_dir: Path, source_branches: dict[str, str]) -> None:
@@ -223,30 +253,39 @@ def dispatch_release_workflow(
     workflow: str,
     token: str,
     plan: ReleasePlan,
-    pr_number: int,
+    pr_number: int | None,
     source_repo: str,
+    source_ref: str | None = None,
 ) -> None:
     body = {
         "ref": "main",
         "inputs": {
             "electron_tag": plan.target.tag,
-            "source_ref": plan.head_branch,
-            "source_pr_number": str(pr_number),
+            "source_ref": source_ref or plan.head_branch,
+            "source_pr_number": str(pr_number) if pr_number is not None else "",
             "source_repo": source_repo,
         },
     }
     github_request(repo, f"actions/workflows/{workflow}/dispatches", token, method="POST", body=body)
 
 
-def build_release_plans(releases: list[Version], latest_by_major: dict[int, str]) -> list[ReleasePlan]:
+def build_release_plans(releases: list[Version], branches: dict[str, str]) -> list[ReleasePlan]:
+    latest_by_major = latest_branches_by_major(branches)
     plans: list[ReleasePlan] = []
     for release in releases:
         previous_branch = latest_by_major.get(release.major)
         if not previous_branch:
             continue
         previous_version = Version.parse(previous_branch.removesuffix("-riscv"))
-        if release <= previous_version:
+        if release < previous_version:
             continue
+        if release == previous_version:
+            # A previous attempt may have created the clean target branch and
+            # failed before opening the PR or dispatching the build. Retry it
+            # using the latest strictly older branch as the patch source.
+            previous_branch = latest_branch_before(branches, release)
+            if not previous_branch:
+                continue
         plans.append(ReleasePlan(target=release, previous_branch=previous_branch))
     return plans
 
@@ -274,8 +313,7 @@ def main() -> int:
     source_owner = source_repo.split("/", 1)[0]
     stable_releases = fetch_stable_releases()
     source_branches = list_source_branches(source_repo_url)
-    latest_by_major = latest_branches_by_major(source_branches)
-    plans = build_release_plans(stable_releases, latest_by_major)
+    plans = build_release_plans(stable_releases, source_branches)
 
     if not plans:
         log("No matching new stable releases found.")
@@ -291,6 +329,10 @@ def main() -> int:
             log(f"Skipping {plan.target.tag}: release already exists in {releases_repo}")
             continue
 
+        if release_workflow_was_dispatched(releases_repo, workflow, plan.target.tag, github_token):
+            log(f"Skipping {plan.target.tag}: release workflow was already dispatched")
+            continue
+
         existing_pr = find_existing_pr(source_repo, source_owner, plan.base_branch, plan.head_branch, github_token)
         if existing_pr:
             state = existing_pr.get("state", "unknown")
@@ -300,8 +342,8 @@ def main() -> int:
 
         if args.dry_run:
             log(
-                f"Would create {plan.base_branch}, force-push {plan.head_branch}, open PR into {plan.base_branch}, "
-                f"and dispatch {workflow}"
+                f"Would prepare {plan.head_branch} against {plan.base_branch}, open a PR if downstream commits "
+                f"remain, and dispatch {workflow}"
             )
             continue
 
@@ -309,11 +351,35 @@ def main() -> int:
             with tempfile.TemporaryDirectory(prefix="electron-riscv-release-") as tempdir_name:
                 checkout_dir = clone_source_repo(auth_url, Path(tempdir_name))
                 ensure_base_branch(plan, checkout_dir, source_branches)
-                prepare_release_branch(plan, checkout_dir)
-            pull = create_pull_request(source_repo, plan.head_branch, plan.base_branch, source_repo_token, plan.previous_branch)
-            pr_number = int(pull["number"])
-            dispatch_release_workflow(releases_repo, workflow, github_token, plan, pr_number, source_repo)
-            log(f"Created PR #{pr_number} for {plan.target.tag}: {pull['html_url']}")
+                has_patch_commits = prepare_release_branch(plan, checkout_dir)
+            if has_patch_commits:
+                pull = create_pull_request(
+                    source_repo,
+                    plan.head_branch,
+                    plan.base_branch,
+                    source_repo_token,
+                    plan.previous_branch,
+                )
+                pr_number = int(pull["number"])
+                source_ref = plan.head_branch
+            else:
+                pull = None
+                pr_number = None
+                source_ref = plan.base_branch
+                log(f"No downstream commits remain for {plan.target.tag}; a source PR is not needed")
+            dispatch_release_workflow(
+                releases_repo,
+                workflow,
+                github_token,
+                plan,
+                pr_number,
+                source_repo,
+                source_ref,
+            )
+            if pull:
+                log(f"Created PR #{pr_number} for {plan.target.tag}: {pull['html_url']}")
+            else:
+                log(f"Dispatched {workflow} directly from {source_ref}")
         except Exception as error:  # noqa: BLE001
             failures.append(f"{plan.target.tag}: {error}")
 
