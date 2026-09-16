@@ -45,13 +45,18 @@ FIXME: Create a systemd service for the github runner.
 
 Upstream stable releases are discovered from https://releases.electronjs.org/releases.json.
 The scheduled workflow creates a clean `vX.Y.Z-riscv` branch in the source repo,
-rebases the latest existing `vX.*.*-riscv` patch stack onto that release,
+rebases the latest older `vX.*.*-riscv` patch stack onto that release,
 opens a PR from `ci/release-vX.Y.Z-riscv` into `vX.Y.Z-riscv`,
 and dispatches the release workflow in this repository against that PR branch.
 If rebasing leaves no downstream commits, the workflow adds an empty marker
 commit so the build still runs from a reviewed `ci/release-vX.Y.Z-riscv` PR.
 Partially prepared releases are retried instead of treating the clean target
 branch as a completed release.
+Patch sources are compared with their corresponding upstream tag by tree:
+clean PR bases left by failed builds and branches containing only empty marker
+commits are skipped in favor of an older branch in the same major version that
+still contains fork changes. If no such branch exists, preparation fails before
+pushing branches instead of opening a PR without the fork's patches.
 
 The automation requires `CI_PAT` to have write access to https://github.com/riscv-forks/electron
 so it can push branches, open PRs, and merge them after a successful build.

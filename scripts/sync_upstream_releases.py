@@ -195,8 +195,7 @@ def initialize_source_repo(source_repo_auth_url: str, tempdir: Path) -> Path:
     return checkout_dir
 
 
-def prepare_release_branch(plan: ReleasePlan, checkout_dir: Path) -> None:
-    previous_tag = plan.previous_branch.removesuffix("-riscv")
+def fetch_source_branch(branch: str, checkout_dir: Path) -> None:
     run(
         [
             "git",
@@ -204,10 +203,40 @@ def prepare_release_branch(plan: ReleasePlan, checkout_dir: Path) -> None:
             "--no-tags",
             "--filter=blob:none",
             "origin",
-            f"refs/heads/{plan.previous_branch}:refs/remotes/origin/{plan.previous_branch}",
+            f"refs/heads/{branch}:refs/remotes/origin/{branch}",
         ],
         cwd=checkout_dir,
     )
+
+
+def resolve_patch_source(
+    plan: ReleasePlan, checkout_dir: Path, source_branches: dict[str, str]
+) -> ReleasePlan:
+    branch = plan.previous_branch
+    while branch:
+        tag = branch.removesuffix("-riscv")
+        fetch_source_branch(branch, checkout_dir)
+        fetch_upstream_tag(tag, checkout_dir)
+        run(["git", "merge-base", "--is-ancestor", tag, f"origin/{branch}"], cwd=checkout_dir)
+        source_tree = run(
+            ["git", "rev-parse", f"origin/{branch}^{{tree}}"], cwd=checkout_dir, capture=True
+        ).strip()
+        upstream_tree = run(
+            ["git", "rev-parse", f"{tag}^{{tree}}"], cwd=checkout_dir, capture=True
+        ).strip()
+        # Failed builds leave a clean PR base behind. Empty marker commits
+        # can also leave an unpatched branch with a different commit ID.
+        if source_tree != upstream_tree:
+            return ReleasePlan(target=plan.target, previous_branch=branch)
+        log(f"Skipping patch source {branch}: its tree matches upstream {tag}")
+        branch = latest_branch_before(source_branches, Version.parse(tag))
+
+    raise RuntimeError(f"No fork changes found in older RISC-V branches for {plan.target.tag}")
+
+
+def prepare_release_branch(plan: ReleasePlan, checkout_dir: Path) -> None:
+    previous_tag = plan.previous_branch.removesuffix("-riscv")
+    fetch_source_branch(plan.previous_branch, checkout_dir)
     fetch_upstream_tag(previous_tag, checkout_dir)
     fetch_upstream_tag(plan.target.tag, checkout_dir)
     run(["git", "switch", "-C", plan.head_branch, f"origin/{plan.previous_branch}"], cwd=checkout_dir)
@@ -375,6 +404,8 @@ def main() -> int:
         try:
             with tempfile.TemporaryDirectory(prefix="electron-riscv-release-") as tempdir_name:
                 checkout_dir = initialize_source_repo(auth_url, Path(tempdir_name))
+                plan = resolve_patch_source(plan, checkout_dir, source_branches)
+                log(f"Rebasing {plan.target.tag} using patch source {plan.previous_branch}")
                 ensure_base_branch(plan, checkout_dir, source_branches)
                 prepare_release_branch(plan, checkout_dir)
             pull = create_pull_request(
