@@ -89,7 +89,10 @@ jobs:
           git -C src/electron fetch upstream --tags
           git -C src/electron fetch rv
           git -C src/electron switch --detach "rv/$SOURCE_REF_RESOLVED"
-          gclient sync --force
+          # Dependencies can become Chromium-tracked files between major versions.
+          # Pair --force with --delete_unversioned_trees so gclient can overwrite
+          # their old checkout files and remove dependencies no longer in DEPS.
+          gclient sync --force --delete_unversioned_trees
       - name: Prepare Sysroot
         run: |
           set -ex
