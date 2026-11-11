@@ -66,10 +66,19 @@ jobs:
     needs: Figure-Out-What-To-Build
     if: ${{ needs.Figure-Out-What-To-Build.outputs.should-build == 'true' }}
     timeout-minutes: 600
+    env:
+      # Wait for Git maintenance before continuing or ending the job.
+      # Environment config also covers gclient's Git subprocesses.
+      GIT_CONFIG_COUNT: '2'
+      GIT_CONFIG_KEY_0: maintenance.autoDetach
+      GIT_CONFIG_VALUE_0: 'false'
+      GIT_CONFIG_KEY_1: gc.autoDetach
+      GIT_CONFIG_VALUE_1: 'false'
     steps:
       - name: Sync sources
         run: |
           set -ex
+          git --version
           SOURCE_REF_RESOLVED="${SOURCE_REF:-${ELECTRON_TAG}-riscv}"
           echo "SOURCE_REF_RESOLVED=$SOURCE_REF_RESOLVED" >> "$GITHUB_ENV"
           cd "$SRC_DIR/.."
